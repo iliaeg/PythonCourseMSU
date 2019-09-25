@@ -1,3 +1,7 @@
 # VScode config folder #
 ########################
 .vscode/
+
+# Test code file #
+##################
+test.py
