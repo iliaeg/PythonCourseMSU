@@ -7,6 +7,7 @@ from os import path
 
 from utils import ceil_five, trunc2, percent_stat, eprint
 
+
 def main(argv):
     '''
     Usage: python transaq.py config.json [-d]
@@ -22,24 +23,26 @@ def main(argv):
             eprint("Usage: python transaq.py config.json [-d]")
             return 1
 
+        if "-h" in argv or "--help" in argv:
+            print("Usage: python transaq.py config.json [-d]")
+            return 0
+
         config_file = path.abspath(argv[1])
 
         if "-d" in argv:
             debug = True
         else:
             debug = False
-        debug = True
-
 
         if not path.exists(config_file):
-            raise FileNotFoundError(f"Configuration file {config_file} not found.")
+            raise FileNotFoundError(f"Configuration file {config_file} not found")
         # read config
         with open(config_file, "r") as read_file:
             config = json.load(read_file)
 
         data_file = path.abspath(config['dataFileName'])
         if not path.exists(data_file):
-            raise FileNotFoundError(f"Data file {data_file} not found.")
+            raise FileNotFoundError(f"Data file {data_file} not found")
 
         cv = pd.read_csv(
             config['dataFileName'],
@@ -51,7 +54,8 @@ def main(argv):
             skipfooter = 2
         )
 
-        # print(cv)
+        if cv.empty:
+            raise Exception("No data in table present")
 
         # here NaN values can appear, so int type may be changed to float
         cv_pivot = cv.pivot(columns='EVENT', values='AVGTSMR')
@@ -73,6 +77,19 @@ def main(argv):
             time_90 = percent_stat(event_time_sorted, event_count, 0.9)
             time_99 = percent_stat(event_time_sorted, event_count, 0.99)
             time_999 = percent_stat(event_time_sorted, event_count, 0.999)
+
+            stat = {
+                'EVENTNAME': event_name,
+                'min': int(time_min),
+                '50%': int(time_50),
+                '90%': int(time_90),
+                '99%': int(time_99),
+                '99,9%': int(time_999)
+            }
+
+            # write statistics to file
+            with open(event_name + config['statisticsFileName'], 'w') as outfile:
+                json.dump(stat, outfile, indent=4)
 
             if debug:
                 print(
@@ -105,7 +122,7 @@ def main(argv):
                 })
 
             processed_data.to_html(
-                buf = event_name + "_"+ config['tableFileName'],
+                buf = event_name + config['tableFileName'],
                 col_space = 100,
                 index = False,
                 justify = 'center'
@@ -116,8 +133,10 @@ def main(argv):
 
     except FileNotFoundError as ex:
         eprint("FileNotFoundError exception caught: \n", ex)
+        return 1
     except Exception as ex:
         eprint("An exception caught: ", ex)
+        return 1
 
     return 0
 
