@@ -12,5 +12,5 @@ test.py
 
 # output files #
 ################
-*.html
-*.txt
+*_table.html
+*_stat.txt
