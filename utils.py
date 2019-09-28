@@ -1,5 +1,6 @@
 import sys
 import math
+from decimal import Decimal
 
 def ceil_five(x):
     return 5 * math.ceil(int(x) / 5)
@@ -8,7 +9,7 @@ def trunc2(array):
         return\
             list(
                 map(
-                    lambda x: x - x % 0.01,
+                    lambda x: round(Decimal(x), 2),
                     array
             ))
 
