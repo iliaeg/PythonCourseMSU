@@ -1,80 +1,125 @@
 import pandas as pd
 import numpy as np
 import math
+import sys
+import json
+from os import path
 
-def ceil_five(x):
-    return 5 * math.ceil(int(x) / 5)
+from utils import ceil_five, trunc2, percent_stat, eprint
 
-cv = pd.read_csv(
-    "data/mtesrl_20150626_MD0000600002_stats.txt",
-    sep = '\t',
-    skiprows = 2,
-    header = 0,
-    usecols = ['EVENT', 'AVGTSMR'],
-    engine = 'python',
-    skipfooter = 2
-)
+def main(argv):
+    '''
+    Usage: python transaq.py config.json [-d]
 
-# print(cv)
+    Args:
+        config: path to json configuration file
+        flag -d: print debug info
+    '''
 
-cv_pivot = cv.pivot(columns='EVENT', values='AVGTSMR')
-# print(cv_pivot)
+    try:
 
-for event_name in cv_pivot:
-    event_time_sorted = cv_pivot[event_name].sort_values().reset_index(drop=True)
-    event_count = event_time_sorted.count()
-    #counts = event_time_sorted.value_counts().sort_index()
-    #data = pd.DataFrame({'time':counts.index, 'count':counts.values})
-    # print(data)
-    # print(event_name)
-    # print(data['time'].min())
+        if (len(argv) < 2):
+            eprint("Usage: python transaq.py config.json [-d]")
+            return 1
 
-    # _sorted = counts.sort_index()
-    print(event_name)
-    print(f"min = {event_time_sorted[0]}")
-    # ind = pd.Series(_sorted.index)
-    print(f"50 % = {event_time_sorted[math.ceil(0.5*event_count)]}")
-    print(f"90 % = {event_time_sorted[math.ceil(0.9*event_count)]}")
-    print(f"99 % = {event_time_sorted[math.ceil(0.99*event_count)]}")
-    print(f"99.9 % = {event_time_sorted[math.ceil(0.999*event_count)]}")
-    # print(event_time_sorted)
+        config_file = path.abspath(argv[1])
 
-    event_time_ceil = event_time_sorted.apply(ceil_five)
+        if "-d" in argv:
+            debug = True
+        else:
+            debug = False
+        debug = True
 
-    event_time_count = event_time_ceil.value_counts().sort_index()
 
-    print(event_time_count)
+        if not path.exists(config_file):
+            raise FileNotFoundError(f"Configuration file {config_file} not found.")
+        # read config
+        with open(config_file, "r") as read_file:
+            config = json.load(read_file)
 
-    weight = event_time_count.values / event_count * 100
+        data_file = path.abspath(config['dataFileName'])
+        if not path.exists(data_file):
+            raise FileNotFoundError(f"Data file {data_file} not found.")
 
-    processed_data = pd.DataFrame({
-        'ExecTime': event_time_count.index,
-        'TransNo': event_time_count.values,
-        'Weight,%':
-            list(
-                map(
-                    lambda x: round(x, 2),
-                    event_time_count.values / event_count * 100
-                ))
-        })
+        cv = pd.read_csv(
+            config['dataFileName'],
+            sep = '\t',
+            skiprows = 2,
+            header = 0,
+            usecols = ['EVENT', 'AVGTSMR'],
+            engine = 'python',
+            skipfooter = 2
+        )
 
-    print(processed_data)
+        # print(cv)
 
-    print(type(weight))
+        # here NaN values can appear, so int type may be changed to float
+        cv_pivot = cv.pivot(columns='EVENT', values='AVGTSMR')
 
-    # event_time_count.index.where(event_time_count.index < 200, )
+        # print(cv_pivot)
 
-    # processed_data[]
+        for event_name in cv_pivot:
+            event_time_sorted = cv_pivot[event_name].sort_values()
+            # drop NaN values
+            event_time_sorted = event_time_sorted.dropna()
+            # convert values back to int
+            event_time_sorted = event_time_sorted.astype(int)
+            event_time_sorted = event_time_sorted.reset_index(drop=True)
+            event_count = event_time_sorted.count()
 
-    # print(np.array(list(map(lambda x: round(x, 2), weight))))
-    
+            # Statistics
+            time_min = event_time_sorted[0]
+            time_50 = percent_stat(event_time_sorted, event_count, 0.5)
+            time_90 = percent_stat(event_time_sorted, event_count, 0.9)
+            time_99 = percent_stat(event_time_sorted, event_count, 0.99)
+            time_999 = percent_stat(event_time_sorted, event_count, 0.999)
 
-    # for index, time in enumerate(event_time_sorted):
-    #     event_time_sorted[index] = 0
-    # for time in event_time_sorted:
-    #     time = ceil_five(time)
+            if debug:
+                print(
+                    "###==================================================###\n" + 
+                    f"###================={event_name:^16}=================###\n" +
+                    "###==================================================###\n"
+                    )
 
-    # data = pd.DataFrame({'time':_sorted.index, 'count':_sorted.values})
-    # print(data.count())
-    # print(data)
-    # print("90% = ", data[int(math.ceil(0.9*data.count()))])
+                print(f"min = {time_min}")
+                print(f"50 % = {time_50}")
+                print(f"90 % = {time_90}")
+                print(f"99 % = {time_99}")
+                print(f"99.9 % = {time_999}\n")
+
+            event_time_ceil = event_time_sorted.apply(ceil_five)
+            event_time_count = event_time_ceil.value_counts().sort_index()
+
+            event_time_weight = np.array(event_time_count.values / event_count * 100)
+
+            event_time_percent = np.empty(([event_time_weight.size]), dtype=float)
+            event_time_percent[0] = event_time_weight[0]
+            for i, value in enumerate(event_time_weight[1:], start=1):
+                event_time_percent[i] = event_time_percent[i - 1] + value
+
+            processed_data = pd.DataFrame({
+                'ExecTime': event_time_count.index,
+                'TransNo': event_time_count.values,
+                'Weight,%': trunc2(event_time_weight),
+                'Percent,%': trunc2(event_time_percent)
+                })
+
+            processed_data.to_html(
+                buf = event_name + "_"+ config['tableFileName'],
+                col_space = 100,
+                index = False,
+                justify = 'center'
+                )
+
+            if debug:
+                print(processed_data)
+
+    except FileNotFoundError as ex:
+        eprint("FileNotFoundError exception caught: \n", ex)
+    except Exception as ex:
+        eprint("An exception caught: ", ex)
+
+    return 0
+
+if __name__ == "__main__":
+    main(sys.argv[:])
