@@ -4,61 +4,84 @@
 import sys
 # import json
 # from os import path
-import tkinter as tk
+from tkinter import *
+from tkinter.ttk import Frame#, Button, Label, Style
 
 from utils import eprint
 
+global data_lbl, filename, select_btn, load_btn, select_lbl, dropbox, \
+    number_lbl, bacon_number, path_from, path
+
+actors = []
+
+def load_file(event):
+    # print(event)
+    print(f"file has been loaded {filename.get()}")
+    filename.delete(0, END)
+    filename.insert(0, "Insert string")
+    path.insert(1.0, "adaasd ad")
+
+class MainWindow(Frame):
+
+    def __init__(self):
+        super().__init__()
+
+        self.initUI()
+
+    def initUI(self):
+
+        global data_lbl, filename, select_btn, load_btn, select_lbl, dropbox, \
+            number_lbl, bacon_number, path_from, path
+
+        self.master.title("Bacon Number")
+        self.pack(fill=BOTH, expand=True)
+
+        self.columnconfigure(1, weight=1)
+        self.columnconfigure(3, pad=7)
+        self.rowconfigure(3, weight=1)
+        self.rowconfigure(5, pad=7)
+
+        data_lbl = Label(self, text="Data file")
+        data_lbl.grid(row=0, column=0, columnspan=2)
+        filename = Entry(self)
+        filename.grid(row=1, column=0, columnspan=2)
+        select_btn = Button(self, text="Select")
+        select_btn.grid(row=2, column=0)
+        load_btn = Button(self, text="Load")
+        load_btn.grid(row=2, column=1)
+        load_btn.bind("<Button-1>", load_file)
+
+        select_lbl = Label(self, text="Select actor")
+        select_lbl.grid(row=0, column=2, columnspan=2)
+        # variable = StringVar()
+        # variable.set(actors[0])
+        # *actors
+        dropbox = OptionMenu(self, StringVar(), None)
+        dropbox.grid(row=1, column=2, columnspan=2)
+
+        number_lbl = Label(self, text="Bacon number:")
+        number_lbl.grid(row=3, column=0, columnspan=2)
+        bacon_number = Label(self, text="num")
+        bacon_number.grid(row=3, column=2, columnspan=2)
+        path_from = Label(self, text="path from .. to ..")
+        path_from.grid(row=4, column=0, columnspan=4)
+        path = Text(self)
+        path.grid(row=5, column=0, columnspan=4, padx=5, sticky=E+W+S+N)
+
+        # print(type(data_lbl))
+        # print(type(filename))
+        # print(type(select_btn))
+        # print(type(dropbox))
+        # print(type(path))
+        
+# win = Elements()
 
 def main(argv):
-    '''
-    Usage: python transaq.py config.json [-d]
-
-    Args:
-        config: path to json configuration file
-        flag -d: print debug info
-    '''
-
     try:
 
-        # if (len(argv) < 2):
-        #     eprint("Usage: python transaq.py config.json [-d]")
-        #     return 1
-
-        # if "-h" in argv or "--help" in argv:
-        #     print("Usage: python bacon-number.py [-d]")
-        #     return 0
-
-        # config_file = path.abspath(argv[1])
-
-        # if "-d" in argv:
-        #     debug = True
-        # else:
-        #     debug = False
-
-        # if not path.exists(config_file):
-        #     raise FileNotFoundError(f"Configuration file {config_file} not found")
-        # # read config
-        # with open(config_file, "r") as read_file:
-        #     config = json.load(read_file)
-
-        # data_file = path.abspath(config['dataFileName'])
-        # if not path.exists(data_file):
-        #     raise FileNotFoundError(f"Data file {data_file} not found")
-
-        
-        # tkinter._test()
-
-        def Hello(event):
-            print("Yet another hello world")
-
-        root = tk.Tk()
-
-        btn = tk.Button(root,                  #родительское окно
-             text="Click me",       #надпись на кнопке
-             width=30,height=5,     #ширина и высота
-             bg="white",fg="black") #цвет фона и надписи
-        btn.bind("<Button-1>", Hello)       #при нажатии ЛКМ на кнопку вызывается функция Hello
-        btn.pack()                          #расположить кнопку на главном окне
+        root = Tk()
+        root.geometry("350x300+300+300")
+        MainWindow()
         root.mainloop()
 
         return 0
