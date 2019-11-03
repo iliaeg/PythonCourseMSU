@@ -1,27 +1,154 @@
-# import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-# import math
-from math import pi
-import sys
-# import json
-# from os import path
+from math import pi, cos
+import matplotlib
+from matplotlib.animation import FuncAnimation
+matplotlib.use("TkAgg")
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
 from tkinter import *
-from tkinter.ttk import Frame#, Button, Label, Style
+from tkinter.ttk import Frame
 
-# from utils import eprint
 
-global data_lbl, filename, select_btn, load_btn, select_lbl, dropbox, \
-    number_lbl, bacon_number, path_from, path
+global canvas, fig, ax, Window, n, d, nt, dt_entry
 
-actors = []
+def F(u, t):
+    return np.sin(0.1*u+t)
 
-def load_file(event):
-    # print(event)
-    print(f"file has been loaded {filename.get()}")
-    filename.delete(0, END)
-    filename.insert(0, "Insert string")
-    path.insert(1.0, "adaasd ad")
+N = 1001 # must be odd, segmentation for x
+S = 3 # number of iteratioins on layer
+NT = 2510
+dt = 0.01
+D = 0.04
+z = []
+
+figsize_x = 6
+figsize_y = 4
+
+def calculate_z():
+    global z, S, N, D, NT, dt 
+
+    x = np.linspace(0,2*pi,N)
+    u0 = np.sin(10*x)
+    fu = np.fft.fft(u0)
+    u = u0
+    z = np.empty((NT,N), dtype=float)
+    h= 2*pi/N
+
+    l = np.empty(N)
+    for k in range(N//2+1):
+        l[k] = 2*D/(h**2) * (1 - cos(k*h/2))
+        l[-k] = l[k]
+
+    for t in range(1, NT):
+        us = u
+        fus = fu
+
+        for s in range(S):
+            F1 = F(u, (t-1)*dt)
+            F2 = F(us, t*dt)
+
+            f = np.fft.fft(F1+F2)
+
+            fus = ((2-dt*l)*fu + dt*f)/(2 + dt*l)
+            us = np.fft.ifft(fus)
+        u = us
+        fu = fus
+        z[t] = np.real(us)
+
+
+z_calculated = False
+
+def get_const():
+    global N, D, NT, dt, n, d, nt, dt_entry, z_calculated
+    N_cur = int(n.get())
+    D_cur = float(d.get())
+    NT_cur = int(nt.get())
+    dt_cur = float(dt_entry.get())
+
+    eps = 0.0001
+
+    if N != N_cur \
+        or NT != NT_cur \
+        or abs(D - D_cur) > eps \
+        or abs(dt - dt_cur) > eps:
+
+        z_calculated = False
+    
+    N = N_cur
+    D = D_cur
+    NT = NT_cur
+    dt = dt_cur
+
+
+def heatmap_plot():
+    global z_calculated, canvas, fig, ax, Window, N, D, NT, dt, figsize_x, figsize_y
+
+    get_const()
+
+    if not z_calculated:
+        calculate_z()
+
+    # plot
+    fig = Figure(figsize=(figsize_x, figsize_y), dpi=100)
+    ax = fig.add_subplot(111)
+
+    im = ax.imshow(z.transpose())
+    fig.colorbar(im)
+
+    canvas = FigureCanvasTkAgg(fig, Window)
+    canvas.draw()
+    canvas.get_tk_widget().grid(row=2, column=0, columnspan=5, padx=5, pady=5, sticky="E"+"W"+"S"+"N")
+
+def animate_plot():
+    global z_calculated, canvas, fig, ax, N, D, NT, dt, figsize_x, figsize_y
+
+    get_const()
+
+    if not z_calculated:
+        calculate_z()
+        z_calculated = True
+
+    # plot
+    test = False
+
+    fig = Figure(figsize=(figsize_x, figsize_y), dpi=100)
+    ax = fig.add_subplot(111)
+
+    frame_width = 500
+    if not test:
+        ax.set_xlim(0, frame_width)
+        ax.set_ylim(-3, 3)
+        # ax = plt.axes(xlim=(0, frame_width), ylim=(-3, 3))
+    else:
+        ax.set_xlim(-100, NT+100)
+        ax.set_ylim(-3, 3)
+        # ax = plt.axes(xlim=(-100, NT+100), ylim=(-3, 3))
+    line, = ax.plot([], [], lw=3)
+
+    def init():
+        line.set_data([], [])
+        return line,
+
+    z_T = z.transpose()
+
+    def animate(i):
+        if not test:
+            x = np.linspace(0-i, NT-i, NT)
+        else:
+            x = np.linspace(0, NT, NT) # NT points in [0, NT]
+
+        y = z_T[len(z_T) // 2]
+
+        line.set_data(x,y)
+        return line,
+
+    frames_of_NT_to_show = 1897
+
+    canvas = FigureCanvasTkAgg(fig, Window)
+    canvas.get_tk_widget().grid(row=2, column=0, columnspan=5, padx=5, pady=5, sticky="E"+"W"+"S"+"N")
+
+    anim = FuncAnimation(fig, animate, init_func=init,
+                                frames=frames_of_NT_to_show, interval=10, blit=True)
 
 class MainWindow(Frame):
 
@@ -32,114 +159,66 @@ class MainWindow(Frame):
 
     def initUI(self):
 
-        global data_lbl, filename, select_btn, load_btn, select_lbl, dropbox, \
-            number_lbl, bacon_number, path_from, path
+        global canvas, fig, ax, Window, figsize_x, figsize_y, n, d, nt, dt_entry
+        Window = self
 
-        self.master.title("Bacon Number")
+        self.rowconfigure(0, pad=5)
+        self.rowconfigure(1, pad=5)
+
+        self.columnconfigure(0, weight=2)
+        self.columnconfigure(1, weight=2)
+        self.columnconfigure(2, weight=2)
+        self.columnconfigure(3, weight=2)
+        self.columnconfigure(4, weight=4)
+
+        self.master.title("Diffusion Equation")
         self.pack(fill=BOTH, expand=True)
 
-        self.columnconfigure(1, weight=1)
-        self.columnconfigure(3, pad=7)
-        self.rowconfigure(3, weight=1)
-        self.rowconfigure(5, pad=7)
+        n_lbl = Label(self, text="N :")
+        n_lbl.grid(row=0, column=0, sticky="E")
+        n = Entry(self)
+        n.insert(0, N)
+        n.grid(row=0, column=1, sticky="W")
+        d_lbl = Label(self, text="D :")
+        d_lbl.grid(row=1, column=0, sticky="E")
+        d = Entry(self)
+        d.insert(0, D)
+        d.grid(row=1, column=1, sticky="W")
 
-        data_lbl = Label(self, text="Data file")
-        data_lbl.grid(row=0, column=0, columnspan=2)
-        filename = Entry(self)
-        filename.grid(row=1, column=0, columnspan=2)
-        select_btn = Button(self, text="Select")
-        select_btn.grid(row=2, column=0)
-        load_btn = Button(self, text="Load")
-        load_btn.grid(row=2, column=1)
-        load_btn.bind("<Button-1>", load_file)
+        nt_lbl = Label(self, text="NT :")
+        nt_lbl.grid(row=0, column=2, sticky="E")
+        nt = Entry(self)
+        nt.insert(0, NT)
+        nt.grid(row=0, column=3, sticky="W")
+        dt_lbl = Label(self, text="dt :")
+        dt_lbl.grid(row=1, column=2, sticky="E")
+        dt_entry = Entry(self)
+        dt_entry.insert(0, dt)
+        dt_entry.grid(row=1, column=3, sticky="W")
 
-        select_lbl = Label(self, text="Select actor")
-        select_lbl.grid(row=0, column=2, columnspan=2)
-        # variable = StringVar()
-        # variable.set(actors[0])
-        # *actors
-        dropbox = OptionMenu(self, StringVar(), None)
-        dropbox.grid(row=1, column=2, columnspan=2)
+        heatmap_btn = Button(self, text="heatmap", command=heatmap_plot)
+        heatmap_btn.grid(row=0, column=4, padx=15, sticky="W"+"E")
+        # heatmap_btn.bind("<Button-1>", heatmap_plot)
+        animate_btn = Button(self, text="animate", command=animate_plot)
+        animate_btn.grid(row=1, column=4, padx=15, sticky="W"+"E")
+        # animate_btn.bind("<Button-1>", animate_plot)
 
-        number_lbl = Label(self, text="Bacon number:")
-        number_lbl.grid(row=3, column=0, columnspan=2)
-        bacon_number = Label(self, text="num")
-        bacon_number.grid(row=3, column=2, columnspan=2)
-        path_from = Label(self, text="path from .. to ..")
-        path_from.grid(row=4, column=0, columnspan=4)
-        path = Text(self)
-        path.grid(row=5, column=0, columnspan=4, padx=5, sticky=E+W+S+N)
-
-        # print(type(data_lbl))
-        # print(type(filename))
-        # print(type(select_btn))
-        # print(type(dropbox))
-        # print(type(path))
+        fig = Figure(figsize=(figsize_x, figsize_y), dpi=100)
+        canvas = FigureCanvasTkAgg(fig, self)
+        canvas.draw()
+        canvas.get_tk_widget().grid(row=2, column=0, columnspan=5, padx=5, pady=5, sticky="E"+"W"+"S"+"N")
         
 # win = Elements()
 
 def main(argv):
     try:
 
-        # root = Tk()
-        # root.geometry("350x300+300+300")
-        # MainWindow()
-        # root.mainloop()
-
-        def F(u,t):
-            return np.sin(0,1 * u + t)
-
-        N = 11 # must be odd, segmentation for x
-        S = 3 # number of iteratioins on layer
-        D = 0.3 # diffusion
-        dt = 0.1
-        NT = 10
-
-        x = np.linspace(0, 2*pi, N)
-        u_0 = np.sin(5*x)
-        f_u = np.fft.fft(u_0)
-        u = u_0
-        h = 2*pi/N
-        l = np.empty(N)
-
-
-        for k in range(N//2+1):
-            l[k] = 4*D/h**2*np.sin(k*h/4)**2 # lambda
-            l[-k] = l[k]
-
-        for t in range(NT):
-            u_s = u
-            f_u_s = f_u
-            
-            for s in range(S):
-                F_1 = F(u, (t-1)*dt)
-                F_2 = F(u_s, t*dt)
-                f = np.fft.fft(F_1 + F_2)
-
-                # l = np.append(l, 4*D/h**2*np.sin(s*h/4)**2) # lambda
-
-                f_u_s = ((2-dt*l)*f_u + dt*f)/(2+dt*l)
-                u_s = np.fft.ifft(f_u_s)
-            z = np.real(u_s)
-            u = u_s
-            f_u = f_u_s
-
-        print(z)
-
-        # plt.imshow(z)
-        plt.plot(z)
-        data = [z]
-
-        fig, ax = plt.subplots()
-        im = ax.imshow(data)#, cmap=plt.get_cmap('hot'), interpolation='nearest', vmin=0, vmax=1)
-        fig.colorbar(im)
-        plt.show()
-
+        root = Tk()
+        app = MainWindow()
+        root.mainloop()
 
         return 0
 
-    except FileNotFoundError as ex:
-        print("FileNotFoundError exception caught: \n", ex)
     except Exception as ex:
         print("An exception caught: ", ex)
         raise ex
