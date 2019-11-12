@@ -5,7 +5,10 @@ import sys
 # import json
 # from os import path
 from tkinter import *
+from tkinter import filedialog
 from tkinter.ttk import Frame#, Button, Label, Style
+import networkx as nx
+import json
 
 from utils import eprint
 
@@ -14,12 +17,94 @@ global data_lbl, filename, select_btn, load_btn, select_lbl, dropbox, \
 
 actors = []
 
+# NetworkX - lib for graphs
+# networkx.github.io
+# G = nx.Graph()
+# G.add_node()
+# G.add_edge() # G.add_edges_from(list)
+# nx.dijkstra_path(G, 'a', 'd')
+# nx.draw(G, with_label=True, fomt_weight='bold')
+
+
+# def dijkstra():
+#     v_0 = 0
+#     others = inf
+#     for each e from v
+#         if v_new(e) < v + e 
+#         v_new = v + e
+
+"""
+Read and write NetworkX graphs as JavaScript InfoVis Toolkit (JIT) format JSON.
+
+See the `JIT documentation`_ for more examples.
+
+Format
+------
+var json = [
+  {
+    "id": "aUniqueIdentifier",
+    "name": "usually a nodes name",
+    "data": {
+      "some key": "some value",
+      "some other key": "some other value"
+     },
+    "adjacencies": [
+    {
+      nodeTo:"aNodeId",
+      data: {} //put whatever you want here
+    },
+    'other adjacencies go here...'
+  },
+
+  'other nodes go here...'
+];
+.. _JIT documentation: http://thejit.org
+"""
+
+def jit_graph(data, create_using=None):
+    """Read a graph from JIT JSON.
+
+    Parameters
+    ----------
+    data : JSON Graph Object
+
+    create_using : Networkx Graph, optional (default: Graph())
+        Return graph of this type. The provided instance will be cleared.
+
+    Returns
+    -------
+    G : NetworkX Graph built from create_using if provided.
+    """
+    if create_using is None:
+        G = nx.Graph()
+    else:
+        G = create_using
+        G.clear()
+
+    if nx.utils.is_string_like(data):
+        data = json.loads(data)
+
+    for node in data:
+        G.add_node(node['name'], **node['data'])
+        if node.get('adjacencies') is not None:
+            for adj in node['adjacencies']:
+                G.add_edge(node['id'], adj['nodeTo'], **adj['data'])
+    return G
+
+def test():
+    
+
+def select_file(event):
+    file_path = filedialog.askopenfilename()
+    filename.delete(0, END)
+    filename.insert(0, file_path)
+
 def load_file(event):
     # print(event)
     print(f"file has been loaded {filename.get()}")
-    filename.delete(0, END)
-    filename.insert(0, "Insert string")
-    path.insert(1.0, "adaasd ad")
+    # filename.delete(0, END)
+    # filename.insert(0, "Insert string")
+    # path.insert(1.0, "adaasd ad")
 
 class MainWindow(Frame):
 
@@ -47,6 +132,7 @@ class MainWindow(Frame):
         filename.grid(row=1, column=0, columnspan=2)
         select_btn = Button(self, text="Select")
         select_btn.grid(row=2, column=0)
+        select_btn.bind("<Button-1>", select_file)
         load_btn = Button(self, text="Load")
         load_btn.grid(row=2, column=1)
         load_btn.bind("<Button-1>", load_file)
@@ -83,6 +169,8 @@ def main(argv):
         root.geometry("350x300+300+300")
         MainWindow()
         root.mainloop()
+
+        test()
 
         return 0
 
