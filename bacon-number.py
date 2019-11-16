@@ -1,110 +1,87 @@
-# import pandas as pd
-# import numpy as np
-# import math
-import sys
-# import json
-# from os import path
-from tkinter import *
-from tkinter import filedialog
-from tkinter.ttk import Frame#, Button, Label, Style
+import sys, os
+from tkinter import Tk, Label, Entry, Button, Text, StringVar, \
+    filedialog, BOTH, END, N, S, W, E
+from tkinter.ttk import Frame, Combobox
 import networkx as nx
+import matplotlib.pyplot as plt
 import json
 
 from utils import eprint
 
-global data_lbl, filename, select_btn, load_btn, select_lbl, dropbox, \
-    number_lbl, bacon_number, path_from, path
 
-actors = []
+def select_file(event=None):
+    global filename
 
-# NetworkX - lib for graphs
-# networkx.github.io
-# G = nx.Graph()
-# G.add_node()
-# G.add_edge() # G.add_edges_from(list)
-# nx.dijkstra_path(G, 'a', 'd')
-# nx.draw(G, with_label=True, fomt_weight='bold')
-
-
-# def dijkstra():
-#     v_0 = 0
-#     others = inf
-#     for each e from v
-#         if v_new(e) < v + e 
-#         v_new = v + e
-
-"""
-Read and write NetworkX graphs as JavaScript InfoVis Toolkit (JIT) format JSON.
-
-See the `JIT documentation`_ for more examples.
-
-Format
-------
-var json = [
-  {
-    "id": "aUniqueIdentifier",
-    "name": "usually a nodes name",
-    "data": {
-      "some key": "some value",
-      "some other key": "some other value"
-     },
-    "adjacencies": [
-    {
-      nodeTo:"aNodeId",
-      data: {} //put whatever you want here
-    },
-    'other adjacencies go here...'
-  },
-
-  'other nodes go here...'
-];
-.. _JIT documentation: http://thejit.org
-"""
-
-def jit_graph(data, create_using=None):
-    """Read a graph from JIT JSON.
-
-    Parameters
-    ----------
-    data : JSON Graph Object
-
-    create_using : Networkx Graph, optional (default: Graph())
-        Return graph of this type. The provided instance will be cleared.
-
-    Returns
-    -------
-    G : NetworkX Graph built from create_using if provided.
-    """
-    if create_using is None:
-        G = nx.Graph()
-    else:
-        G = create_using
-        G.clear()
-
-    if nx.utils.is_string_like(data):
-        data = json.loads(data)
-
-    for node in data:
-        G.add_node(node['name'], **node['data'])
-        if node.get('adjacencies') is not None:
-            for adj in node['adjacencies']:
-                G.add_edge(node['id'], adj['nodeTo'], **adj['data'])
-    return G
-
-def test():
-    
-
-def select_file(event):
-    file_path = filedialog.askopenfilename()
+    file_path = filedialog.askopenfilename(
+        initialdir = os.getcwd(),
+        # initialfile = os.path.join(os.getcwd(), "data", "data_fixed.json"),
+        title = "Select file",
+        filetypes = (("json files","*.json"),("all files","*.*")))
     filename.delete(0, END)
     filename.insert(0, file_path)
 
 def load_file(event):
-    # print(event)
-    print(f"file has been loaded {filename.get()}")
-    # filename.delete(0, END)
-    # filename.insert(0, "Insert string")
-    # path.insert(1.0, "adaasd ad")
+    global multigraph, dropbox
+
+    multigraph = nx.MultiGraph()
+
+    file_path = filename.get()
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Configuration file {file_path} not found")
+    # read json
+    with open(file_path, "r") as read_file:
+        data = json.load(read_file)
+
+    list_of_actors = []
+    for actor in data:
+        multigraph.add_node(actor['name'])
+        list_of_actors.append(actor['name'])
+
+    films = {}
+    for actor in data:
+        for film in actor['films']:
+            films.setdefault(json.dumps(film),[]).append(actor['name'])
+
+    for film, actors in films.items():
+        for i in range(len(actors)):
+            for j in range(i, len(actors)):
+                dictionary = json.loads(film)
+                multigraph.add_edge(
+                    actors[i],
+                    actors[j],
+                    title = dictionary['title'],
+                    year = dictionary['year'])
+
+    draw_graph = False
+    if draw_graph:
+        # Need to create a layout when doing
+        # separate calls to draw nodes and edges
+        pos = nx.spring_layout(multigraph)
+        nx.draw_networkx_nodes(multigraph, pos, cmap=plt.get_cmap('jet'), node_size = 500)
+        nx.draw_networkx_labels(multigraph, pos)
+        nx.draw_networkx_edges(multigraph, pos, edge_color='r', arrows=True)
+        nx.draw_networkx_edge_labels(multigraph, pos)
+        plt.show()
+
+    dropbox['values'] = list_of_actors
+    dropbox.current(0)
+
+def calculate_bacon(event):
+    global dropbox, tkvar, bacon_number, path_from, path, multigraph
+
+    to_actor = tkvar.get()
+    actors_path = nx.shortest_path(multigraph, source='Kevin Bacon', target=to_actor)
+
+    bacon_number['text'] = len(actors_path) - 1
+    path_from['text'] = "Path from Kevin Bacon to " + to_actor
+
+    path.delete(1.0, END)
+    path_str = "\n"
+    for i in range(1, len(actors_path)):
+        edge = multigraph.get_edge_data(actors_path[i - 1], actors_path[i])
+        path_str += actors_path[i] + " : \n" \
+            + '\t' + str(edge[0]['title']) + ", " + str(edge[0]['year']) + '\n\n'
+    path.insert(1.0, path_str)
 
 class MainWindow(Frame):
 
@@ -114,63 +91,58 @@ class MainWindow(Frame):
         self.initUI()
 
     def initUI(self):
+        global filename, dropbox, tkvar, bacon_number, path_from, path
 
-        global data_lbl, filename, select_btn, load_btn, select_lbl, dropbox, \
-            number_lbl, bacon_number, path_from, path
+        paddingx = 10
+        paddingy = 10
 
         self.master.title("Bacon Number")
         self.pack(fill=BOTH, expand=True)
 
-        self.columnconfigure(1, weight=1)
-        self.columnconfigure(3, pad=7)
-        self.rowconfigure(3, weight=1)
-        self.rowconfigure(5, pad=7)
+        self.columnconfigure(0, pad=3,weight=2)
+        self.columnconfigure(1, pad=3,weight=2)
+        self.columnconfigure(2, pad=3,weight=4)
+        self.columnconfigure(3, pad=3,weight=2)
+
+        self.rowconfigure(0, pad=3)
+        self.rowconfigure(1, pad=3)
+        self.rowconfigure(2, pad=3)
+        self.rowconfigure(3, pad=3)
+        self.rowconfigure(4, pad=3)
 
         data_lbl = Label(self, text="Data file")
         data_lbl.grid(row=0, column=0, columnspan=2)
         filename = Entry(self)
-        filename.grid(row=1, column=0, columnspan=2)
-        select_btn = Button(self, text="Select")
-        select_btn.grid(row=2, column=0)
-        select_btn.bind("<Button-1>", select_file)
+        filename.grid(row=1, column=0, columnspan=2, padx=paddingx, sticky=W+E)
+        select_btn = Button(self, text="Select", command=select_file)
+        select_btn.grid(row=2, column=0, padx=paddingx, sticky=W+E)
         load_btn = Button(self, text="Load")
-        load_btn.grid(row=2, column=1)
+        load_btn.grid(row=2, column=1, padx=paddingx, sticky=W+E)
         load_btn.bind("<Button-1>", load_file)
 
         select_lbl = Label(self, text="Select actor")
         select_lbl.grid(row=0, column=2, columnspan=2)
-        # variable = StringVar()
-        # variable.set(actors[0])
-        # *actors
-        dropbox = OptionMenu(self, StringVar(), None)
-        dropbox.grid(row=1, column=2, columnspan=2)
+        tkvar = StringVar()
+        dropbox = Combobox(self, textvariable = tkvar,state="readonly")
+        dropbox.grid(row=1, column=2, columnspan=2, padx=paddingx, sticky=W+E)
+        dropbox.bind('<<ComboboxSelected>>', calculate_bacon)
 
         number_lbl = Label(self, text="Bacon number:")
-        number_lbl.grid(row=3, column=0, columnspan=2)
-        bacon_number = Label(self, text="num")
-        bacon_number.grid(row=3, column=2, columnspan=2)
-        path_from = Label(self, text="path from .. to ..")
+        number_lbl.grid(row=3, column=0, columnspan=2, sticky=E)
+        bacon_number = Label(self, text="")
+        bacon_number.grid(row=3, column=2, columnspan=2, sticky=W)
+        path_from = Label(self, text="Path from Kevin Bacon to ..")
         path_from.grid(row=4, column=0, columnspan=4)
         path = Text(self)
-        path.grid(row=5, column=0, columnspan=4, padx=5, sticky=E+W+S+N)
+        path.grid(row=5, column=0, columnspan=4, padx=paddingx, pady=paddingy, sticky=E+W+S+N)
 
-        # print(type(data_lbl))
-        # print(type(filename))
-        # print(type(select_btn))
-        # print(type(dropbox))
-        # print(type(path))
-        
-# win = Elements()
 
 def main(argv):
     try:
 
         root = Tk()
-        root.geometry("350x300+300+300")
         MainWindow()
         root.mainloop()
-
-        test()
 
         return 0
 
