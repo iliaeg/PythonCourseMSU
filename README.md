@@ -1,2 +1,2 @@
-# fki-transaq
-Python task on Space Research Faculty of MSU
+# PythonCourseMSU
+Python tasks on Space Research Faculty of MSU
