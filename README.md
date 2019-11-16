@@ -1,1 +1,0 @@
-# fki-bacon-number
