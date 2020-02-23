@@ -1,0 +1,11 @@
+# VScode config folder #
+########################
+.vscode/
+
+# python cache #
+################
+__pycache__/
+
+# Test code file #
+##################
+test.py
